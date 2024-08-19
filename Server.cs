@@ -77,7 +77,7 @@ public class Server
         List<string> headers = await GetHeaders(stream);
     }
 
-    private async Task InterceptRequest()
+    private async Task InterceptRequest(List<string> headers, string[] tokens)
     {
         
     }
