@@ -12,44 +12,59 @@ public class Server
     private TcpListener _tcpListener;
     private IPAddress _ip = IPAddress.Parse("127.0.0.1");
     private int _port = 5000;
+    private string? _toIntercept = null;
+    private bool _isIntercepted = false;
+    public enum RequestType
+    {
+        HTTP,
+        TCP
+    }
+    
+    private RequestType _requestType = RequestType.HTTP;
     public Server()
     {
          Task.Run(() => StartServer());
     }
-
+    
     private async Task StartServer()
     {
         _tcpListener = new TcpListener(_ip, _port);
         _tcpListener.Start();
         
         Console.WriteLine($"Listening on {_ip}:{_port}");
-
         while (true)
         {
-            _client = await _tcpListener.AcceptTcpClientAsync();
-            _ = Task.Run(() => ClientHandler(_client));
+            if (_isIntercepted)
+            {
+                Console.WriteLine("Intercepting");
+                _client = await _tcpListener.AcceptTcpClientAsync();
+                _ = Task.Run(() => ClientHandler(_client));
+            }
         }
     }
 
     private async Task ClientHandler(TcpClient client)
     {
-        NetworkStream stream = client.GetStream();
-        StreamReader reader = new StreamReader(stream, Encoding.ASCII);
-        string request = await reader.ReadLineAsync();
-
-        if (string.IsNullOrWhiteSpace(request))
-            return;
-
-        string[] tokens = request.Split(' ');
-        string method = tokens[0];
-
-        if (method == "CONNECT")
+        if (_requestType == RequestType.HTTP)
         {
-            
-        }
-        else
-        {
-            await HandleHttp(tokens, reader, stream);
+            NetworkStream stream = client.GetStream();
+            StreamReader reader = new StreamReader(stream, Encoding.ASCII);
+            string request = await reader.ReadLineAsync();
+
+            if (string.IsNullOrWhiteSpace(request))
+                return;
+
+            string[] tokens = request.Split(' ');
+            string method = tokens[0];
+
+            if (method == "CONNECT")
+            {
+
+            }
+            else
+            {
+                await HandleHttp(tokens, reader, stream);
+            }
         }
     }
 
@@ -62,6 +77,10 @@ public class Server
         List<string> headers = await GetHeaders(stream);
     }
 
+    private async Task InterceptRequest()
+    {
+        
+    }
     private async Task<List<string>> GetHeaders(NetworkStream stream)
     {
         byte idx = 0;
@@ -78,7 +97,7 @@ public class Server
                 }
                 
                 if (0 == idx)
-                    idx++; // makes sure that its only reading the headers
+                    idx++; // makes sure that it's only reading the headers
             }
         }
         
@@ -89,5 +108,20 @@ public class Server
     {
         get => _port;
         set => _port = value;
+    }
+
+    public bool IsIntercepted
+    {
+        get => _isIntercepted;
+        set => _isIntercepted = value;
+    }
+    public string? ToIntercept
+    {
+        get => _toIntercept;
+        set => _toIntercept = value;
+    }
+    public RequestType TypeRequest
+    {
+        set => _requestType = value;
     }
 }
