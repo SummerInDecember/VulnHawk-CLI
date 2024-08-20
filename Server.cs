@@ -3,6 +3,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using Terminal.Gui;
+using VulnHawk_CLI;
 
 namespace VulnHawk_CLI;
 
@@ -14,6 +15,9 @@ public class Server
     private int _port = 5000;
     private string? _toIntercept = null;
     private bool _isIntercepted = false;
+    private List<NetworkStream> _normalRequests = new List<NetworkStream>();
+    private List<string> _interceptRequests = new List<string>();
+    private MainWindow _win;
     public enum RequestType
     {
         HTTP,
@@ -21,8 +25,9 @@ public class Server
     }
     
     private RequestType _requestType = RequestType.HTTP;
-    public Server()
+    public Server(MainWindow win)
     {
+         _win = win;
          Task.Run(() => StartServer());
     }
     
@@ -34,12 +39,9 @@ public class Server
         Console.WriteLine($"Listening on {_ip}:{_port}");
         while (true)
         {
-            if (_isIntercepted)
-            {
-                Console.WriteLine("Intercepting");
-                _client = await _tcpListener.AcceptTcpClientAsync();
-                _ = Task.Run(() => ClientHandler(_client));
-            }
+            Console.WriteLine("Intercepting");
+            _client = await _tcpListener.AcceptTcpClientAsync();
+            _ = Task.Run(() => ClientHandler(_client));
         }
     }
 
@@ -75,6 +77,15 @@ public class Server
         string version = tokens[2];
 
         List<string> headers = await GetHeaders(stream);
+        _normalRequests.Add(stream);
+        
+        if (_isIntercepted)
+        {
+            await InterceptRequest(headers, tokens);
+        }
+
+        await _win.AddBtnRequests(stream);
+
     }
 
     private async Task InterceptRequest(List<string> headers, string[] tokens)
